@@ -1,0 +1,196 @@
+import { useEffect, useState } from "react";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  query,
+  orderBy,
+  where,
+} from "firebase/firestore";
+
+import {
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+} from "firebase/auth";
+
+import { db, auth } from "./firebase";
+
+type Todo = {
+  id: string;
+  text: string;
+  completed: boolean;
+  uid: string;
+  createdAt?: any;
+};
+
+function App() {
+  const [text, setText] = useState("");
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const provider = new GoogleAuthProvider();
+
+  // Auth + Realtime Todos
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        setUserId(null);
+        setTodos([]);
+        return;
+      }
+
+      setUserId(user.uid);
+
+      const q = query(
+        collection(db, "todos"),
+        where("uid", "==", user.uid),
+        orderBy("createdAt", "desc"),
+      );
+
+      const unsubscribeTodos = onSnapshot(q, (snapshot) => {
+        const data: Todo[] = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<Todo, "id">),
+        }));
+        setTodos(data);
+      });
+
+      return () => unsubscribeTodos();
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Auth actions
+  const login = async () => {
+    await signInWithPopup(auth, provider);
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+  };
+
+  // CRUD
+  const addTodo = async () => {
+    if (!text.trim() || !auth.currentUser) return;
+
+    await addDoc(collection(db, "todos"), {
+      text: text.trim(),
+      completed: false,
+      uid: auth.currentUser.uid,
+      createdAt: serverTimestamp(),
+    });
+
+    setText("");
+  };
+
+  const deleteTodo = async (id: string) => {
+    await deleteDoc(doc(db, "todos", id));
+  };
+
+  const toggleTodo = async (id: string, completed: boolean) => {
+    await updateDoc(doc(db, "todos", id), {
+      completed: !completed,
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl p-6 text-white">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">🔥 Todo</h1>
+
+          {!userId ? (
+            <button
+              onClick={login}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg text-sm transition"
+            >
+              Login
+            </button>
+          ) : (
+            <button
+              onClick={logout}
+              className="text-sm text-red-400 hover:text-red-300 transition"
+            >
+              Logout
+            </button>
+          )}
+        </div>
+
+        {/* Input */}
+        {userId && (
+          <div className="flex gap-2 mb-5">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="What needs to be done?"
+              className="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            <button
+              onClick={addTodo}
+              className="bg-green-600 hover:bg-green-700 px-4 rounded-lg transition"
+            >
+              Add
+            </button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {userId && todos.length === 0 && (
+          <p className="text-gray-400 text-sm text-center mt-4">
+            No tasks yet. Add one 🚀
+          </p>
+        )}
+
+        {/* Todo List */}
+        <ul className="space-y-3">
+          {todos.map((todo) => (
+            <li
+              key={todo.id}
+              className="flex items-center gap-3 bg-gray-800 px-3 py-2 rounded-lg hover:bg-gray-750 transition"
+            >
+              <input
+                type="checkbox"
+                checked={todo.completed}
+                onChange={() => toggleTodo(todo.id, todo.completed)}
+                className="accent-green-500 w-4 h-4 cursor-pointer"
+              />
+
+              <span
+                className={`flex-1 text-sm ${
+                  todo.completed ? "line-through text-gray-400" : "text-white"
+                }`}
+              >
+                {todo.text}
+              </span>
+
+              <button
+                onClick={() => deleteTodo(todo.id)}
+                className="text-red-500 hover:text-red-400 text-sm transition"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {/* Footer hint */}
+        {!userId && (
+          <p className="text-gray-400 text-sm text-center mt-6">
+            Login to start managing your tasks
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;
