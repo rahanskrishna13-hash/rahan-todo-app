@@ -1,16 +1,4 @@
 import { useEffect, useState } from "react";
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  query,
-  orderBy,
-  where,
-} from "firebase/firestore";
 
 import {
   onAuthStateChanged,
@@ -19,7 +7,8 @@ import {
   signOut,
 } from "firebase/auth";
 
-import { db, auth } from "./firebase";
+import { auth } from "./firebase";
+import API_URL from "./api";
 
 type Todo = {
   id: string;
@@ -36,9 +25,9 @@ function App() {
 
   const provider = new GoogleAuthProvider();
 
-  // Auth + Realtime Todos
+  // Auth + Load Todos from EC2
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setUserId(null);
         setTodos([]);
@@ -47,21 +36,10 @@ function App() {
 
       setUserId(user.uid);
 
-      const q = query(
-        collection(db, "todos"),
-        where("uid", "==", user.uid),
-        orderBy("createdAt", "desc"),
-      );
+      const response = await fetch(`${API_URL}/todos`);
+      const data = await response.json();
 
-      const unsubscribeTodos = onSnapshot(q, (snapshot) => {
-        const data: Todo[] = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<Todo, "id">),
-        }));
-        setTodos(data);
-      });
-
-      return () => unsubscribeTodos();
+      setTodos(data);
     });
 
     return () => unsubscribeAuth();
@@ -76,28 +54,51 @@ function App() {
     await signOut(auth);
   };
 
-  // CRUD
   const addTodo = async () => {
-    if (!text.trim() || !auth.currentUser) return;
+    if (!text.trim()) return;
 
-    await addDoc(collection(db, "todos"), {
-      text: text.trim(),
-      completed: false,
-      uid: auth.currentUser.uid,
-      createdAt: serverTimestamp(),
+    await fetch(`${API_URL}/todos`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: text.trim(),
+        completed: false,
+      }),
     });
 
     setText("");
+
+    const response = await fetch(`${API_URL}/todos`);
+    const data = await response.json();
+    setTodos(data);
   };
 
   const deleteTodo = async (id: string) => {
-    await deleteDoc(doc(db, "todos", id));
+    await fetch(`${API_URL}/todos/${id}`, {
+      method: "DELETE",
+    });
+
+    const response = await fetch(`${API_URL}/todos`);
+    const data = await response.json();
+    setTodos(data);
   };
 
   const toggleTodo = async (id: string, completed: boolean) => {
-    await updateDoc(doc(db, "todos", id), {
-      completed: !completed,
+    await fetch(`${API_URL}/todos/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        completed: !completed,
+      }),
     });
+
+    const response = await fetch(`${API_URL}/todos`);
+    const data = await response.json();
+    setTodos(data);
   };
 
   return (
