@@ -86,19 +86,29 @@ function App() {
   };
 
   const toggleTodo = async (id: string, completed: boolean) => {
-    await fetch(`${API_URL}/todos/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        completed: !completed,
-      }),
-    });
+    try {
+      console.log("Toggling:", id, completed);
 
-    const response = await fetch(`${API_URL}/todos`);
-    const data = await response.json();
-    setTodos(data);
+      const res = await fetch(`${API_URL}/todos/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          completed: !completed,
+        }),
+      });
+
+      const result = await res.json();
+      console.log("PUT response:", result);
+
+      // Re-fetch updated todos
+      const response = await fetch(`${API_URL}/todos`);
+      const data = await response.json();
+      setTodos(data);
+    } catch (err) {
+      console.error("Toggle error:", err);
+    }
   };
 
   return (
