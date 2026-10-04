@@ -9,7 +9,7 @@ Backend (EC2 API):
 http://<your-ec2-public-ip>:5000
 
 ---
-
+NOTE: The server is not active anymore as I am not currently paying for the AWS ec-2 service. So this project was just done in order for me to get familiar with AWS.
 ## Overview
 
 This is a **full-stack Todo application** built and deployed using modern cloud technologies. The project demonstrates end-to-end integration between a frontend hosted on AWS S3, a backend running on AWS EC2, and a Firebase database.
